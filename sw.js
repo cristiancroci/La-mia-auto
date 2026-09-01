@@ -8,6 +8,7 @@ const ASSETS = [
   "./icon-maskable.svg"
 ];
 
+
 self.addEventListener("install", event => {
   // Non chiamiamo skipWaiting qui: il nuovo service worker resta "in attesa"
   // finché l'utente non conferma l'aggiornamento dal banner nell'app.
