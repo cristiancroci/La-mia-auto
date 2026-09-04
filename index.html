@@ -355,6 +355,10 @@ button{font-family:inherit;}
     <label for="jobDate">Data</label>
     <input type="date" id="jobDate">
   </div>
+  <div class="field">
+    <label for="jobKm">Chilometraggio</label>
+    <input type="text" id="jobKm" inputmode="numeric" placeholder="Es. 186.000">
+  </div>
   <div class="field-row">
     <div class="field">
       <label for="jobRicambi">Ricambi €</label>
@@ -426,7 +430,6 @@ button{font-family:inherit;}
 
   let state = loadState();
 
-  
   const els = {
     totalAmount: document.getElementById("totalAmount"),
     statCount: document.getElementById("statCount"),
@@ -440,6 +443,7 @@ button{font-family:inherit;}
     delLink: document.getElementById("delLink"),
     jobName: document.getElementById("jobName"),
     jobDate: document.getElementById("jobDate"),
+    jobKm: document.getElementById("jobKm"),
     jobRicambi: document.getElementById("jobRicambi"),
     jobManodopera: document.getElementById("jobManodopera"),
     jobNote: document.getElementById("jobNote"),
@@ -537,7 +541,7 @@ button{font-family:inherit;}
             <div class="job-icon">🔧</div>
             <div class="job-mid">
               <div class="job-title">${escapeHtml(j.name)}</div>
-              <div class="job-date">${dateStr}</div>
+              <div class="job-date">${dateStr}${j.km ? " · " + escapeHtml(j.km) + " km" : ""}</div>
             </div>
             <div class="job-total">${fmt(jTotal)}</div>
           </div>
@@ -566,6 +570,7 @@ button{font-family:inherit;}
     els.delLink.style.display = "none";
     els.jobName.value = "";
     els.jobDate.value = todayStr();
+    els.jobKm.value = "";
     els.jobRicambi.value = "";
     els.jobManodopera.value = "";
     els.jobNote.value = "";
@@ -583,6 +588,7 @@ button{font-family:inherit;}
     els.delLink.style.display = "inline";
     els.jobName.value = j.name;
     els.jobDate.value = new Date(j.ts).toISOString().slice(0,10);
+    els.jobKm.value = j.km || "";
     els.jobRicambi.value = j.ricambi || "";
     els.jobManodopera.value = j.manodopera || "";
     els.jobNote.value = j.note || "";
@@ -603,6 +609,7 @@ button{font-family:inherit;}
   els.btnSave.addEventListener("click", () => {
     const name = els.jobName.value.trim();
     const dateVal = els.jobDate.value;
+    const km = els.jobKm.value.trim();
     const ricambi = num(els.jobRicambi.value);
     const manodopera = num(els.jobManodopera.value);
     const note = els.jobNote.value.trim();
@@ -616,13 +623,13 @@ button{font-family:inherit;}
     if(editingId){
       const j = state.jobs.find(x => x.id === editingId);
       if(j){
-        j.name = name; j.ts = ts; j.ricambi = ricambi; j.manodopera = manodopera; j.note = note;
+        j.name = name; j.ts = ts; j.km = km; j.ricambi = ricambi; j.manodopera = manodopera; j.note = note;
       }
       showToast("Intervento aggiornato");
     } else {
       state.jobs.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-        name, ts, ricambi, manodopera, note
+        name, ts, km, ricambi, manodopera, note
       });
       showToast("Intervento aggiunto");
     }
@@ -730,7 +737,17 @@ button{font-family:inherit;}
     try{
       const res = await fetch(syncUrl, {method:"GET"});
       const remote = res.ok ? await res.json() : null;
-      if(remote && (remote.updatedAt || 0) > (state.updatedAt || 0)){
+      const localEmpty = !state.jobs || state.jobs.length === 0;
+      const remoteHasData = remote && remote.jobs && remote.jobs.length > 0;
+
+      // Protezione: se il dispositivo è vuoto ma Drive ha dati, scarica sempre
+      // da Drive invece di rischiare di sovrascriverli con il vuoto.
+      const shouldPull = remote && (
+        (remoteHasData && localEmpty) ||
+        (remote.updatedAt || 0) > (state.updatedAt || 0)
+      );
+
+      if(shouldPull){
         state = {jobs: remote.jobs || [], updatedAt: remote.updatedAt || 0};
         saveState(false);
         render();
